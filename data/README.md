@@ -3,7 +3,7 @@
 ```
 data/
 ├── raw/
-│   ├── cdc/          # CDC WONDER mortality exports (manual — recipe below)
+│   ├── cdc/          # CDC WONDER mortality exports (manual; recipe below)
 │   ├── samhsa/       # facility locator pull (scripts/01)
 │   └── census/       # ACS pulls (scripts/02)
 └── processed/        # outputs of scripts/03
@@ -15,7 +15,7 @@ data is a short manual export.
 
 ---
 
-## 1. CDC WONDER — opioid overdose deaths by state × year (2014–2024)
+## 1. CDC WONDER: opioid overdose deaths by state × year (2014–2024)
 
 CDC WONDER has **no public API for sub-national mortality**; queries must go
 through the web interface. To export:
@@ -32,7 +32,7 @@ Death): **D157** ("2018–2024, Single Race") and **D77** ("1999–2020", used f
   (any opioid involved).
 - Export, and save the `.txt` into `data/raw/cdc/`. **Name files so the newer
   database sorts last alphabetically** (e.g. `..._2014_2020.txt`,
-  `..._2018_2024.txt`) — the merge keeps the last file's values for overlap
+  `..._2018_2024.txt`); the merge keeps the last file's values for overlap
   years.
 
 Sanity anchors (national totals must match published NCHS figures exactly):
@@ -42,7 +42,7 @@ Sanity anchors (national totals must match published NCHS figures exactly):
 (`wonder_dom_dump*.json`) to canonical WONDER TSV; skip it if you export
 `.txt` files directly from the UI.
 
-## 2. SAMHSA FindTreatment.gov — treatment facilities
+## 2. SAMHSA FindTreatment.gov: treatment facilities
 
 ```
 python scripts/01_fetch_samhsa.py
@@ -51,17 +51,17 @@ python scripts/01_fetch_samhsa.py
 No key needed. Pulls the full national substance-use facility list
 (~12,000 rows, ~55 MB JSON) from the locator's `exportsAsJson/v2` endpoint and
 prints the service taxonomy used to define the OTP / MOUD filters. Note: this
-is a **snapshot** — the locator changes as facilities update their listings,
+is a **snapshot**; the locator changes as facilities update their listings,
 so a re-pull will differ slightly from the September 2026 snapshot behind the
 article.
 
-## 3. U.S. Census — ACS 2023 1-year estimates
+## 3. U.S. Census: ACS 2023 1-year estimates
 
 **Requires a free API key** (data queries reject keyless requests):
 
 1. Request one at <https://api.census.gov/data/key_signup.html> (arrives by
    email in minutes).
-2. Create a `.env` file at the repo root (gitignored — never commit it):
+2. Create a `.env` file at the repo root (gitignored; never commit it):
 
    ```
    CENSUS_API_KEY=your_key_here
@@ -81,12 +81,12 @@ the API's metadata first.
 python scripts/03_clean_merge.py
 ```
 
-- **`processed/state_merged.csv`** — one row per state (50 + DC). Key columns:
+- **`processed/state_merged.csv`**: one row per state (50 + DC). Key columns:
   `fips`, `state`, `abbrev`, latest-year deaths and crude/age-adjusted rates,
   `deaths_3yr`/`rate_3yr` (2022–2024 combined), `otp_count`, `moud_count`,
   per-100k densities, `deaths_per_moud_facility`, ACS population / median
   income / insurance coverage.
-- **`processed/mortality_by_state_year.csv`** — long table, 51 × 11 years
+- **`processed/mortality_by_state_year.csv`**: long table, 51 × 11 years
   (2014–2024): deaths, population, crude and age-adjusted rates.
 
 The merge halts unless every source matches a fixed 51-jurisdiction FIPS table
