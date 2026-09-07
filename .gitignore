@@ -1,0 +1,18 @@
+# Secrets — never commit
+.env
+
+# Internal writing blueprint + card generator
+ARTICLE_GUIDE.md
+scripts/06_build_og_image.py
+
+# Local tooling
+.claude/
+
+# No data in the repo — data/README.md documents how to obtain everything
+data/*
+!data/README.md
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
