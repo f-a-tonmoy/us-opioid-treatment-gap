@@ -89,11 +89,10 @@ scripts/
   02_fetch_census.py        Step 2: ACS population / income / insurance
   03_clean_merge.py         Step 3: clean, join-audit, merge on state FIPS
   04_analytics.py           Step 4: rankings, gaps, correlations, cross-checks
-  05_build_article.py       Step 5: render reports/article.html from the data
+  05_build_article.py       Step 5: render index.html from the data
 reports/
-  article.html              THE ARTICLE: open in any browser
   hero-image.png            README / LinkedIn / link-preview card
-index.html                  the article, served at the Pages root
+index.html                  THE ARTICLE, served at the Pages root
 requirements.txt            Python dependencies
 ```
 
@@ -125,7 +124,7 @@ python scripts/04_analytics.py
 
 # 5. Render the article
 python scripts/05_build_article.py
-# -> writes reports/article.html and index.html (the page Pages serves)
+# -> writes index.html (the page Pages serves)
 
 # 6. Preview locally
 python -m http.server 8000

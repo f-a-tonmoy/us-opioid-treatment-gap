@@ -13,8 +13,7 @@ import pandas as pd
 from scipy import stats
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "reports" / "article.html"
-OUT.parent.mkdir(exist_ok=True)
+(ROOT / "reports").mkdir(exist_ok=True)   # holds the hero image
 
 m = pd.read_csv(ROOT / "data" / "processed" / "state_merged.csv", dtype={"fips": str})
 long = pd.read_csv(ROOT / "data" / "processed" / "mortality_by_state_year.csv", dtype={"fips": str})
@@ -923,9 +922,7 @@ else window.addEventListener('load', renderCharts);
 </html>
 """
 
-OUT.write_text(html, encoding="utf-8")
-print(f"wrote {OUT} ({OUT.stat().st_size / 1024:.0f} KB)")
-# the Pages root serves the article directly (clean URL, no redirect hop)
+# one canonical URL: the article lives only at the Pages root
 INDEX = ROOT / "index.html"
 INDEX.write_text(html, encoding="utf-8")
-print(f"wrote {INDEX}")
+print(f"wrote {INDEX} ({INDEX.stat().st_size / 1024:.0f} KB)")
