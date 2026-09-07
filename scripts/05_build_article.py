@@ -450,14 +450,17 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 /* ---- section nav: RIGHT side ---- */
 .section-nav {{ position: fixed; top: 50%; transform: translateY(-50%);
   left: calc(50% + 442px); z-index: 5; }}
-.section-nav ol {{ list-style: none; margin: 0; padding: 0; }}
-.section-nav a {{ display: flex; align-items: center; gap: 10px;
-  padding: 6px 8px; font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 13px;
-  color: var(--ink-dim); text-decoration: none; border-radius: 5px; }}
-.section-nav .num {{ font-weight: 700; color: #a9a9ba; font-size: 12.5px; width: 22px; text-align: right; }}
-.section-nav .label {{ opacity: 0; transform: translateX(-4px); transition: opacity .25s, transform .25s; white-space: nowrap; }}
-.section-nav a:hover .label, .section-nav a.active .label {{ opacity: 1; transform: none; }}
-.section-nav a.active .num {{ color: var(--ember); }}
+.section-nav ol {{ list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--rule); }}
+.section-nav a {{ display: flex; align-items: center; gap: 12px;
+  margin-left: -2px; border-left: 2px solid transparent; padding: 7px 12px 7px 14px;
+  font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 13px;
+  color: var(--ink-dim); text-decoration: none; }}
+.section-nav .num {{ font-weight: 700; color: #a9a9ba; font-size: 12.5px; width: 22px; }}
+.section-nav .label {{ opacity: 0; transition: opacity .25s; white-space: nowrap; }}
+.section-nav:hover .label, .section-nav a.active .label {{ opacity: 1; }}
+.section-nav a.active {{ border-left-color: var(--indigo); background: var(--indigo-soft); }}
+.section-nav a.active .num, .section-nav a.active .label {{ color: var(--indigo); font-weight: 600; }}
+.section-nav a:hover .num {{ color: var(--ink); }}
 @media (max-width: 1240px) {{ .section-nav {{ display: none; }} }}
 @media (max-width: 860px) {{ figure.wide {{ margin-left: -12px; margin-right: -12px; }} }}
 @media (max-width: 640px) {{
