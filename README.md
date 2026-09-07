@@ -93,7 +93,7 @@ scripts/
 reports/
   article.html              THE ARTICLE: open in any browser
   hero-image.png            README / LinkedIn / link-preview card
-index.html                  redirects the Pages root to the article
+index.html                  the article, served at the Pages root
 requirements.txt            Python dependencies
 ```
 
@@ -125,7 +125,7 @@ python scripts/04_analytics.py
 
 # 5. Render the article
 python scripts/05_build_article.py
-# -> writes reports/article.html
+# -> writes reports/article.html and index.html (the page Pages serves)
 
 # 6. Preview locally
 python -m http.server 8000

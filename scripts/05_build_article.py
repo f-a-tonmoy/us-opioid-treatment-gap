@@ -925,3 +925,7 @@ else window.addEventListener('load', renderCharts);
 
 OUT.write_text(html, encoding="utf-8")
 print(f"wrote {OUT} ({OUT.stat().st_size / 1024:.0f} KB)")
+# the Pages root serves the article directly (clean URL, no redirect hop)
+INDEX = ROOT / "index.html"
+INDEX.write_text(html, encoding="utf-8")
+print(f"wrote {INDEX}")
