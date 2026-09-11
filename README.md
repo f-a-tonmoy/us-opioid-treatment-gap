@@ -1,13 +1,13 @@
 # One Facility for Every Nineteen Deaths
 
 A data story on the U.S. opioid epidemic at the state level: what
-**612,499 overdose deaths (2014–2024)** matched against **every treatment
+**612,499 opioid overdose deaths (2014–2024)** matched against **every treatment
 facility in SAMHSA's national locator** reveal about where the burden sits,
 where the treatment system followed it, and the four states where it didn't.
 
 > **Live article:** **<https://f-a-tonmoy.github.io/us-opioid-treatment-gap/>**
 
-[![Treatment followed the deaths. Four states got left behind. A tile map of all 50 states with the four underserved states highlighted](reports/hero-image.png)](https://f-a-tonmoy.github.io/us-opioid-treatment-gap/)
+[![Treatment followed the deaths. Four states got left behind. A scatter plot of all 50 states, opioid deaths against treatment facilities, with four states highlighted in the high-burden, low-capacity quadrant](reports/hero-image.png)](https://f-a-tonmoy.github.io/us-opioid-treatment-gap/)
 
 Built as a reproducible Python pipeline that fetches, cleans, cross-validates,
 and renders a single self-contained HTML article with interactive Plotly
@@ -23,12 +23,12 @@ section navigation. Source data: CDC WONDER (databases
 | Stat | Number |
 |---|---|
 | Opioid overdose deaths, 2014–2024 | **612,499** |
-| The 2024 drop, the largest one-year decline on record | **−32%** (81,806 peak → 54,045) |
+| The 2024 drop, the largest one-year decline on record | **−32%** (79,358 → 54,045; the 2022 peak was 81,806) |
 | Facilities providing buprenorphine or methadone (MOUD) | **7,657** (of 11,614 substance-use facilities) |
 | Certified Opioid Treatment Programs, official SAMHSA directory | **2,100** |
 | Overdose deaths naming no drug on the certificate | **4%** nationally, **30%** in Louisiana |
 | Death-rate gap, worst state (WV) vs best (NE), corrected | **11×** |
-| Opioid deaths per treatment facility in Washington state | **19**, the nation's worst ratio |
+| Opioid deaths per treatment facility in Washington state | **19**, the worst of any state |
 | Burden ↔ capacity correlation (Spearman) | **+0.40** (+0.67 for OTPs) |
 | States above-median burden *and* worst-quartile on three gap measures | **4**: SC, WA, TN, NV |
 | Treatment density, Medicaid expansion vs non-expansion states | **2.72** vs **1.46** per 100k |
