@@ -38,9 +38,23 @@ Death): **D157** ("2018–2024, Single Race") and **D77** ("1999–2020", used f
 Sanity anchors (national totals must match published NCHS figures exactly):
 80,411 (2021) · 81,806 (2022) · 79,358 (2023) · 54,045 (2024).
 
-`scripts/00_wonder_dom_to_tsv.py` converts the raw browser pulls
-(`wonder_dom_dump*.json`) to canonical WONDER TSV; skip it if you export
-`.txt` files directly from the UI.
+Three further WONDER queries feed the corrections, all from `D157`:
+
+- **Drug specificity**, state x year, 2018-2024, two runs on the same UCD
+  codes: one with no multiple-cause filter (every drug overdose death) and one
+  with MCD restricted to `T36-T50.8` (deaths naming a specific drug). The
+  difference is deaths with no drug named. Save the two results together as
+  `data/raw/cdc/drug_specificity_capture.csv` with columns
+  `fips,year,overdose_total,overdose_specified`; `scripts/03a_drug_specificity.py`
+  reads that file.
+- **Race**, national, `Single Race 6` x Year, 2018-2024, same opioid
+  definition. Save as `data/raw/cdc/opioid_by_race_2018_2024.csv` with columns
+  `race,year,deaths,pop,rate`. Do not splice this with `D77`: that database
+  uses bridged-race categories, which are not comparable.
+
+Mortality exports must keep the `wonder_mcd_*` filename prefix. The merge step
+globs on that prefix so the capture files above are not mistaken for mortality
+exports.
 
 ## 2. SAMHSA FindTreatment.gov: treatment facilities
 
@@ -55,7 +69,18 @@ is a **snapshot**; the locator changes as facilities update their listings,
 so a re-pull will differ slightly from the September 2026 snapshot behind the
 article.
 
-## 3. U.S. Census: ACS 2023 1-year estimates
+## 3. SAMHSA certified OTP directory
+
+The authoritative list of certified opioid treatment programs, exported as CSV
+by `scripts/01_fetch_samhsa.py` alongside the locator pull. Use this for any
+OTP count. The locator's own self-reported certification flag agrees at the
+national level (2,037 vs 2,100) but is wrong state by state: threefold too high
+in West Virginia, a third too low in Massachusetts and New York, and it claims
+a program in Wyoming, which has none.
+
+    https://www.samhsa.gov/find-help/locators/opioid-treatment-program-directory
+
+## 4. U.S. Census: ACS 2023 1-year estimates
 
 **Requires a free API key** (data queries reject keyless requests):
 
@@ -75,7 +100,7 @@ Pulls `B01003` (population), `B19013` (median household income), and `DP03`
 (insurance coverage) for all states, verifying each variable's label against
 the API's metadata first.
 
-## 4. Processed outputs
+## 5. Processed outputs
 
 ```
 python scripts/03_clean_merge.py

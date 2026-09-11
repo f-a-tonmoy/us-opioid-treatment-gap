@@ -17,6 +17,8 @@
 # methadone facilities happens in the merge step, after the filter strings are
 # confirmed against the enumeration this script prints.
 
+import csv
+import io
 import json
 import time
 from collections import Counter
@@ -26,10 +28,19 @@ import requests
 
 BASE = "https://findtreatment.gov/locator/exportsAsJson/v2"
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) data-journalism research script"}
-OUT = Path(__file__).resolve().parents[1] / "data" / "raw" / "samhsa" / "facilities_sa_raw.json"
+OUTDIR = Path(__file__).resolve().parents[1] / "data" / "raw" / "samhsa"
+OUT = OUTDIR / "facilities_sa_raw.json"
 PAGE_SIZE = 2000
 
-# Categories whose distinct values we enumerate for the filter decision.
+# SAMHSA's authoritative certified-OTP directory. The locator's own
+# "SAMHSA certification for opioid treatment program (OTP)" flag is
+# self-reported and unreliable at state level: it agrees nationally
+# (2,037 vs 2,100) but is off threefold in West Virginia and misses a
+# third of the programs in Massachusetts and New York. Anything that
+# depends on OTP counts uses this directory instead.
+OTP_DIR_URL = "https://www.samhsa.gov/find-help/locators/opioid-treatment-program-directory/export?page=&_format=csv"
+OTP_OUT = OUTDIR / "otp_directory.csv"
+
 OPIOID_CATEGORIES = ("TC", "OM", "OT", "PHR", "LCA")
 
 
@@ -55,11 +66,23 @@ def fetch_all():
     return rows, expected
 
 
+def fetch_otp_directory():
+    """SAMHSA's official list of certified OTPs (the methadone-dispensing tier)."""
+    r = requests.get(OTP_DIR_URL, headers=UA, timeout=90)
+    r.raise_for_status()
+    r.encoding = "utf-8"
+    OTP_OUT.write_text(r.text, encoding="utf-8", newline="")
+    rows = list(csv.DictReader(io.StringIO(r.text)))
+    status = Counter(x["Certification"] for x in rows)
+    print(f"\nOfficial OTP directory: {len(rows)} programs "
+          f"({', '.join(f'{v} {k.lower()}' for k, v in status.most_common())})")
+    print(f"  saved -> {OTP_OUT}")
+
+
 def main():
     print("Fetching nationwide SA facility list from findtreatment.gov ...")
     rows, expected = fetch_all()
 
-    # --- integrity checks ---
     assert len(rows) == expected, f"got {len(rows)} rows, API reported {expected}"
     # No stable facility ID in the payload; dedupe on address identity.
     keys = [(r["name1"], r.get("street1"), r.get("city"), r.get("state"), r.get("zip")) for r in rows]
@@ -69,12 +92,12 @@ def main():
     OUT.write_text(json.dumps(rows), encoding="utf-8")
     print(f"Raw JSON saved -> {OUT} ({OUT.stat().st_size / 1e6:.1f} MB)")
 
-    # --- profile: states ---
+    fetch_otp_directory()
+
     states = Counter(r.get("state") for r in rows)
     print(f"\nDistinct 'state' values ({len(states)}):")
     print("  " + ", ".join(f"{s}:{n}" for s, n in sorted(states.items(), key=lambda x: str(x[0]))))
 
-    # --- profile: distinct service strings in opioid-relevant categories ---
     print("\nDistinct service strings by category (for filter definition):")
     for code in OPIOID_CATEGORIES:
         vals = Counter()

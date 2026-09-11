@@ -4,8 +4,8 @@
 #   - DP03_0096PE   % with health insurance     (data profile endpoint)
 #   - DP03_0099PE   % without health insurance  (data profile endpoint)
 #
-# Vintage 2023 matches the latest final CDC mortality year. Keyless access is
-# fine at this volume (Census allows ~500 queries/day without a key).
+# Vintage 2023 matches the latest final CDC mortality year. Data queries need
+# a free API key; only the metadata endpoints stay keyless.
 #
 # Each variable's label is fetched from the API's own variables.json first and
 # printed, so the meaning is verified from the source rather than assumed.

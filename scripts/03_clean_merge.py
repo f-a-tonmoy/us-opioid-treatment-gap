@@ -14,8 +14,10 @@
 # Join key: state FIPS code. The STATES table below is the source of truth;
 # every source must match it exactly (50 states + DC = 51 rows) or we stop.
 
+import csv
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
@@ -56,6 +58,13 @@ OTP_STRING = "SAMHSA certification for opioid treatment program (OTP)"
 MOUD_OM_STRINGS = {"Buprenorphine used in Treatment", "Methadone used in Treatment"}
 TERRITORIES = {"PR", "GU", "MP", "VI", "AS"}
 
+# The ten states that have not adopted the ACA Medicaid expansion (KFF,
+# "Status of State Medicaid Expansion Decisions"; unchanged since North
+# Carolina expanded in December 2023). Wisconsin and Georgia cover some
+# adults through waivers but take no expansion match, so both count as
+# non-expansion here, which is KFF's own classification.
+NON_EXPANSION = {"AL", "FL", "GA", "KS", "MS", "SC", "TN", "TX", "WI", "WY"}
+
 
 def audit_join(source, fips_set):
     """Every source must cover exactly the 51 STATES fips codes."""
@@ -64,6 +73,35 @@ def audit_join(source, fips_set):
     if missing or extra:
         sys.exit(f"JOIN AUDIT FAILED for {source}: missing={sorted(missing)} extra={sorted(extra)}")
     print(f"  join audit [{source}]: 51/51 states matched, no extras")
+
+
+def load_otp_directory():
+    """Certified OTP counts from SAMHSA's official directory.
+
+    Replaces the locator's self-reported certification flag, which agrees
+    nationally (2,037 vs 2,100) but fails at state level: threefold too high
+    in West Virginia (21 vs 9), and a third too low in Massachusetts and
+    New York. Wyoming has no certified OTP at all; the flag claimed one.
+    """
+    rows = list(csv.DictReader(
+        (RAW / "samhsa" / "otp_directory.csv").read_text(encoding="utf-8").splitlines()))
+    seen, uniq = set(), []
+    for r in rows:
+        if r["State"] in TERRITORIES:
+            continue
+        k = (r["Program Name"].strip().lower(), r["Street"].strip().lower(),
+             r["City"].strip().lower(), r["State"])
+        if k not in seen:
+            seen.add(k)
+            uniq.append(r)
+    counts = Counter(r["State"] for r in uniq)
+    # every state appears, including those with zero programs
+    df = pd.DataFrame([{"fips": f, "otp_count": counts.get(ab, 0)}
+                       for f, (_, ab) in STATES.items()])
+    print(f"OTP directory: {len(rows)} programs -> {len(uniq)} in the 50 states + DC; "
+          f"{int((df.otp_count == 0).sum())} state(s) with none")
+    audit_join("SAMHSA OTP directory", set(df["fips"]))
+    return df
 
 
 def load_samhsa():
@@ -88,17 +126,20 @@ def load_samhsa():
                 out.update(x.strip() for x in s.get("f3", "").split("; ") if x.strip())
         return out
 
+    # MOUD counts the medications a facility reports using, and nothing else:
+    # folding in the OTP flag would make the two measures partly the same one,
+    # and the article leans on them being independent.
     recs = []
     for r in usable:
-        is_otp = OTP_STRING in svc(r, "LCA")
         recs.append({
             "fips": ABBREV_TO_FIPS[r["state"]],
-            "otp": is_otp,
-            "moud": is_otp or bool(svc(r, "OM") & MOUD_OM_STRINGS),
+            "moud": bool(svc(r, "OM") & MOUD_OM_STRINGS),
+            "otp_selfreport": OTP_STRING in svc(r, "LCA"),   # kept only for the methods note
         })
-    df = (pd.DataFrame(recs).groupby("fips").agg(otp_count=("otp", "sum"), moud_count=("moud", "sum"))
+    df = (pd.DataFrame(recs).groupby("fips")
+          .agg(moud_count=("moud", "sum"), otp_selfreport=("otp_selfreport", "sum"))
           .astype(int).reset_index())
-    audit_join("SAMHSA", set(df["fips"]))
+    audit_join("SAMHSA locator", set(df["fips"]))
     return df
 
 
@@ -120,10 +161,16 @@ def load_census():
 
 
 def find_cdc_files():
-    """All WONDER exports, alphabetical: the 2014-2020 file (database D77) sorts
-    before the 2018-2024 file (D157), so keep='last' below prefers the newer
-    database for the overlap years 2018-2020."""
-    return sorted(list((RAW / "cdc").glob("*.txt")) + list((RAW / "cdc").glob("*.csv")))
+    """The WONDER mortality exports, alphabetical: the 2014-2020 file (database
+    D77) sorts before the 2018-2024 file (D157), so keep='last' below prefers
+    the newer database for the overlap years 2018-2020.
+
+    Matched by the `wonder_mcd_*` prefix, not by extension: data/raw/cdc/ also
+    holds the drug-specificity and race captures, which are not mortality
+    exports and must not be parsed as one.
+    """
+    return sorted(list((RAW / "cdc").glob("wonder_mcd_*.txt"))
+                  + list((RAW / "cdc").glob("wonder_mcd_*.csv")))
 
 
 def load_wonder(path):
@@ -131,7 +178,6 @@ def load_wonder(path):
     Returns long df: fips, state, year, deaths, population, crude_rate, aa_rate."""
     df = pd.read_csv(path, sep="\t", dtype=str)
 
-    # normalize column names -> canonical keys
     def canon(name):
         return " ".join(str(name).lower().replace("-", " ").split())
     cols = {canon(c): c for c in df.columns}
@@ -154,12 +200,16 @@ def load_wonder(path):
         "population": df[cols["population"]],
         "crude_rate": df[cols["crude rate"]],
         "aa_rate": df[aa_col] if aa_col else pd.NA,
+        # WONDER ships confidence intervals; carrying them through lets the
+        # article show how uncertain a small state's rank really is
+        "crude_lo": df[cols["crude rate lower 95% confidence interval"]],
+        "crude_hi": df[cols["crude rate upper 95% confidence interval"]],
     })
     # notes block rows have no State Code
     out = out[df[cols["state code"]].notna() & (df[cols["state code"]].astype(str).str.strip() != "")]
 
     # numeric coercion; 'Suppressed'/'Unreliable'/'Not Applicable' -> NaN, reported
-    for c in ("deaths", "population", "crude_rate", "aa_rate"):
+    for c in ("deaths", "population", "crude_rate", "aa_rate", "crude_lo", "crude_hi"):
         raw = out[c].astype(str).str.replace(",", "", regex=False)
         out[c] = pd.to_numeric(raw, errors="coerce")
         bad = out[c].isna().sum()
@@ -169,7 +219,6 @@ def load_wonder(path):
     if aa_col is None:
         print("  WONDER WARNING: no Age Adjusted Rate column found — export was made without it")
 
-    # grain check
     years = sorted(out["year"].unique())
     print(f"WONDER: {len(out)} state-year rows | years {years[0]}-{years[-1]} | states {out['fips'].nunique()}")
     expect = 51 * len(years)
@@ -182,10 +231,13 @@ def load_wonder(path):
 def main():
     print("=== Merge step ===")
     samhsa = load_samhsa()
+    otp = load_otp_directory()
     census = load_census()
-    capacity = samhsa.merge(census, on="fips", validate="1:1")
+    capacity = samhsa.merge(otp, on="fips", validate="1:1").merge(census, on="fips", validate="1:1")
     capacity["otp_per_100k"] = capacity["otp_count"] / capacity["acs_pop"] * 1e5
     capacity["moud_per_100k"] = capacity["moud_count"] / capacity["acs_pop"] * 1e5
+    capacity["expanded_medicaid"] = ~capacity["fips"].map(
+        lambda f: STATES[f][1]).isin(NON_EXPANSION)
 
     cdc_paths = find_cdc_files()
     if not cdc_paths:
@@ -221,7 +273,8 @@ def main():
     pooled = (last3.groupby("fips").agg(d3=("deaths", "sum"), p3=("population", "sum")))
     pooled["rate_3yr"] = pooled["d3"] / pooled["p3"] * 1e5
 
-    merged = capacity.set_index("fips").join(w_latest[["deaths", "population", "crude_rate", "aa_rate"]])
+    merged = capacity.set_index("fips").join(
+        w_latest[["deaths", "population", "crude_rate", "aa_rate", "crude_lo", "crude_hi"]])
     merged = merged.join(pooled[["d3", "rate_3yr"]]).reset_index()
     merged.insert(1, "state", merged["fips"].map(lambda f: STATES[f][0]))
     merged.insert(2, "abbrev", merged["fips"].map(lambda f: STATES[f][1]))
