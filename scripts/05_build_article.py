@@ -28,6 +28,9 @@ _natpeak = nrate[[y for y in nrate.index if y != LATEST]].max()
 NAT_DECL = (nrate[LATEST] - _natpeak) / _natpeak * 100
 NAT_R14 = nrate[LATEST] / nrate[2014]
 TOTAL = int(nat["deaths"].sum())
+# floored to the nearest 100k for the deck and hero card, so the rounded
+# phrasing stays true if the data changes rather than going quietly stale
+TOTAL_FLOOR = TOTAL // 100_000 * 100_000
 D2014, D2017, D2018, D2019, D2020, D2022, D2023, D2024 = (int(nat.loc[nat.year == y, "deaths"].iloc[0]) for y in (2014, 2017, 2018, 2019, 2020, 2022, 2023, 2024))
 PCT_DIP_2018 = (D2018 - D2017) / D2017 * 100
 PCT_2324 = (D2024 - D2023) / D2023 * 100
@@ -36,6 +39,10 @@ PCT_ABOVE_2019 = (D2024 - D2019) / D2019 * 100
 PCT_ABOVE_2014 = (D2024 - D2014) / D2014 * 100
 MIN_PER_DEATH_24 = 525_600 / D2024
 MIN_PER_DEATH_22 = 525_600 / D2022
+# North Carolina's medical examiner closed hundreds of 2023 cases after the
+# federal file was compiled, so its 2023 row understates the state's own count
+NC23 = int(long.loc[(long.fips == "37") & (long.year == 2023), "deaths"].iloc[0])
+NC23_STATE = 3656   # NCDHHS, opioid-involved overdose deaths 2023 (cite-12)
 last3 = long[long.year >= LATEST - 2]
 NAT3 = last3["deaths"].sum() / last3["population"].sum() * 1e5
 
@@ -247,17 +254,18 @@ c_decline = dict(
                   annotations=[dict(x=float(AK.decline_pct), y="AK", xanchor="right", xshift=-8,
                                     text=f"<b>Alaska: {AK.decline_pct:.0f}%</b>", showarrow=False,
                                     font=dict(size=12, color=EMBER)),
-                               dict(x=NAT_DECL, y=1, yref="paper", yshift=15,
+                               dict(x=NAT_DECL, y=1, yref="paper", yshift=20,
                                     text=f"National {NAT_DECL:.0f}%", showarrow=False,
                                     font=dict(size=11.5, color=DIM)),
                                dict(xref="paper", yref="paper", x=0.02, y=0.995, xanchor="left",
                                     text="■ Western states", showarrow=False,
                                     font=dict(size=12.5, color=EMBER)),
                                dict(xref="paper", yref="paper", x=0.02, y=0.966, xanchor="left",
-                                    text="■ Everywhere else", showarrow=False,
+                                    text="■ Elsewhere", showarrow=False,
                                     font=dict(size=12.5, color="#8783c4"))]))
 
 # 04 capacity: horizontal dumbbells, OTP (ember diamond) -> MOUD (indigo dot)
+CAPMAX = float(m["moud_per_100k"].max())
 cc = m.sort_values("moud_per_100k", ascending=True)  # best at top of a reversed axis
 seg_x, seg_y = [], []
 for _, r in cc.iterrows():
@@ -276,7 +284,10 @@ c_capacity = dict(
                hovertemplate="%{customdata}: %{x} MOUD facilities /100k<extra></extra>")],
     layout=layout(height=880, showlegend=True, margin=dict(l=40, r=20, t=34, b=44),
                   legend=dict(orientation="h", x=0.5, xanchor="center", y=1.03, font=dict(size=12.5)),
-                  xaxis=gaxis(title=dict(text="Facilities per 100,000 residents", font=dict(size=12.5, color=DIM)), rangemode="tozero"),
+                  # start just below zero: Wyoming has no certified OTP, and a marker
+                  # sitting exactly on the axis line overlaps its own tick label
+                  xaxis=gaxis(title=dict(text="Facilities per 100,000 residents", font=dict(size=12.5, color=DIM)),
+                              range=[-0.032 * CAPMAX, CAPMAX * 1.06]),
                   yaxis=dict(tickfont=dict(size=10.5), ticklen=0),
                   annotations=[dict(x=3.3, y="WY", yshift=13,
                                     text=f"<b>Wyoming: one OTP, {int(WY.moud_count)} MOUD facilities</b>",
@@ -369,12 +380,12 @@ c_specificity = dict(
                customdata=sp.state.tolist(),
                hovertemplate="%{customdata}: %{x}% of overdose deaths name no drug<extra></extra>")],
     layout=layout(height=400, bargap=0.45, margin=dict(l=40, r=30, t=34, b=44),
-                  xaxis=gaxis(title=dict(text="Share of overdose deaths with no drug named, 2022–2024",
+                  xaxis=gaxis(title=dict(text="Overdose deaths naming no drug, 2022–2024",
                                          font=dict(size=12.5, color=DIM)), ticksuffix="%"),
                   yaxis=dict(tickfont=dict(size=11.5), ticklen=0),
                   shapes=[dict(type="line", x0=NAT_UNSPEC, x1=NAT_UNSPEC, yref="paper", y0=0, y1=1,
                                line=dict(color=DIM, width=1.2, dash="dash"))],
-                  annotations=[dict(x=NAT_UNSPEC, y=1, yref="paper", yshift=15,
+                  annotations=[dict(x=NAT_UNSPEC, y=1, yref="paper", yshift=20,
                                     text=f"National {NAT_UNSPEC:.0f}%", showarrow=False,
                                     font=dict(size=11.5, color=DIM)),
                                dict(x=float(LA.unspec_share), y="LA", xshift=-10, xanchor="right",
@@ -417,17 +428,24 @@ for lbl, sub, color in [("Expanded Medicaid", exp, INDIGO), ("Did not expand", n
 c_medicaid = dict(
     data=med,
     layout=layout(height=300, margin=dict(l=150, r=30, t=40, b=44),
-                  xaxis=gaxis(title=dict(text="MOUD facilities per 100,000 residents",
+                  xaxis=gaxis(title=dict(text="MOUD facilities per 100,000",
                                          font=dict(size=12.5, color=DIM)), rangemode="tozero"),
                   yaxis=dict(tickfont=dict(size=13), ticklen=0),
-                  shapes=[dict(type="line", x0=MED_MOUD_E, x1=MED_MOUD_E, y0=0.62, y1=1.38,
+                  # category order follows the trace order above: 0 = Expanded, 1 = Did
+                  # not expand. Each median must span its OWN row, or the chart shows
+                  # each group measured against the other group's midpoint.
+                  shapes=[dict(type="line", x0=MED_MOUD_E, x1=MED_MOUD_E, y0=-0.38, y1=0.38,
                                yref="y", line=dict(color=INDIGO, width=2.5)),
-                          dict(type="line", x0=MED_MOUD_N, x1=MED_MOUD_N, y0=-0.38, y1=0.38,
+                          dict(type="line", x0=MED_MOUD_N, x1=MED_MOUD_N, y0=0.62, y1=1.38,
                                yref="y", line=dict(color=EMBER, width=2.5))],
+                  # anchored beside each line, not centred on it: a centred label
+                  # gets bisected by the very line it names
                   annotations=[dict(x=MED_MOUD_E, y="Expanded Medicaid", yshift=30,
+                                    xanchor="left", xshift=6,
                                     text=f"median {MED_MOUD_E:.2f}", showarrow=False,
                                     font=dict(size=11.5, color=INDIGO)),
                                dict(x=MED_MOUD_N, y="Did not expand", yshift=-30,
+                                    xanchor="left", xshift=6,
                                     text=f"median {MED_MOUD_N:.2f}", showarrow=False,
                                     font=dict(size=11.5, color=EMBER))]))
 
@@ -447,14 +465,32 @@ def ordinal(n):
 
 CITE_DATE = "September 5, 2026"
 
-def figure(cid, title, caption, note="", wide=False, anim="", extra="", reset=False):
+CHARTS = {"c-national": c_national, "c-map": c_map, "c-decline": c_decline,
+          "c-capacity": c_capacity, "c-specificity": c_specificity,
+          "c-scatter": c_scatter, "c-slope": c_slope, "c-race": c_race,
+          "c-medicaid": c_medicaid}
+
+def figure(cid, title, caption, note="", wide=False, anim="", extra="", reset=False, sense=""):
+    """`sense` states which direction is the good one, above the chart.
+
+    It sits under the title at reading size rather than in the axis label or
+    the caption: a reader should meet it before interpreting the marks, not
+    after, and it is the one line that decides whether they read the finding
+    forwards or backwards.
+    """
     cls = ("wide " if wide else "") + (extra + " " if extra else "") + anim
     note_html = f'<span class="note">{note}</span>' if note else ""
+    sense_html = f'<div class="figsense">{sense}</div>' if sense else ""
     # the map can be panned and pinched, so it needs a visible way back
     pill = (f'<button class="map-reset" type="button" data-target="{cid}" hidden>'
             f'Reset map</button>') if reset else ""
     return (f'<figure class="{cls.strip()}"><div class="figtitle">{title}</div>'
-            f'<div class="chart"><div id="{cid}" style="width:100%"></div>{pill}</div>'
+            f'{sense_html}'
+            # min-height reserves the chart's space before Plotly renders. Without it
+            # the placeholders are 0px tall when the browser restores a #sec-N hash on
+            # reload, so it lands short by the height of every chart above the target.
+            f'<div class="chart"><div id="{cid}" style="width:100%;'
+            f'min-height:{CHARTS[cid]["layout"]["height"]}px"></div>{pill}</div>'
             f'<figcaption>{caption}{note_html}</figcaption></figure>')
 
 # ---------------- HTML ----------------
@@ -489,7 +525,7 @@ html = f"""<!doctype html>
 html {{ scroll-behavior: smooth; }}
 html, body {{ margin: 0; padding: 0; background: var(--bg); color: var(--ink); }}
 body {{ font-family: "Spectral", "Georgia", serif; font-size: 18px; line-height: 1.72;
-  border-top: 6px solid var(--indigo); -webkit-font-smoothing: antialiased; }}
+  -webkit-font-smoothing: antialiased; }}
 ::selection {{ background: rgba(232,163,61,0.4); }}
 .sans, figcaption, .figtitle {{ font-family: "IBM Plex Sans", system-ui, sans-serif; }}
 .container {{ max-width: 700px; margin: 0 auto; padding: 26px 24px 80px; }}
@@ -537,6 +573,12 @@ a.term:hover {{ color: var(--indigo); border-bottom-style: solid; }}
 figure {{ margin: 36px 0 20px; border-top: 1px solid var(--ink); padding-top: 12px; }}
 figure.wide {{ margin-left: -70px; margin-right: -70px; }}
 .figtitle {{ font-size: 14px; font-weight: 600; letter-spacing: 0.005em; margin: 0 0 4px; }}
+/* how to read the chart: belongs above the marks, at reading size */
+.figsense {{ font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 13.5px;
+  line-height: 1.45; color: var(--ink); background: var(--indigo-soft);
+  border-left: 3px solid var(--indigo); padding: 7px 12px; margin: 0 0 12px;
+  border-radius: 0 4px 4px 0; }}
+@media (max-width: 640px) {{ .figsense {{ font-size: 13px; padding: 6px 10px; }} }}
 figure .chart {{ background: transparent; position: relative; }}
 /* bottom-left: clear of the figure title above and the colorbar on the right.
    There is no tile attribution to avoid - this is a projected geo chart, not
@@ -669,7 +711,7 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
   <div class="eyebrow">U.S. Opioid Epidemic · 2014 to 2024</div>
   <h1>One Facility for Every Nineteen Deaths</h1>
   <p class="deck">
-    Opioids killed more than 600,000 Americans in eleven years. Treatment followed the
+    Opioids killed more than {TOTAL_FLOOR:,} Americans in eleven years. Treatment followed the
     deaths. {UND_WORDS.capitalize()} states got left behind.
   </p>
   <div class="byline">
@@ -727,11 +769,12 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 {figure("c-national", "The national toll, year by year",
         "Opioid overdose deaths across all 50 states + DC.",
         "Multiple-cause-of-death records: underlying cause is drug overdose (X40&ndash;44, X60&ndash;64, X85, Y10&ndash;14), with any opioid (T40.0&ndash;T40.4, T40.6) among the listed causes.",
-        wide=True, anim="anim-draw")}
+        wide=True, anim="anim-draw",
+        sense="Lower is better. Each point is one year&rsquo;s national death count.")}
 
 <h2 id="sec-02"><span class="kick">Section 02</span>The map the fentanyl era drew.</h2>
 <p>
-  Averaged over 2022&ndash;2024 to smooth out the small states, West Virginia&rsquo;s rate
+  Measured over 2022&ndash;2024 so a single year cannot swing the ranking, West Virginia&rsquo;s rate
   of <em class="stat">{WV.rate_3yr_adj:.0f} deaths per 100,000 residents</em> is
   {WV.rate_3yr_adj / NAT3_ADJ:.1f} times the national figure of {NAT3_ADJ:.0f}, and
   {WV.rate_3yr_adj / NE.rate_3yr_adj:.0f} times Nebraska&rsquo;s, the lowest. The highest rates run through
@@ -741,8 +784,9 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 </p>
 {figure("c-map", "Where the burden concentrates",
         f"Opioid overdose deaths per 100,000 residents, 2022&ndash;2024 combined, corrected for incomplete drug reporting. DC, second-highest at {DCr.rate_3yr_adj:.0f}, is too small to see at this scale.",
-        "North Carolina&rsquo;s 2023 figure is understated in the final federal file: NCHS notes ~900 late-coded overdose deaths (a true count over 4,400) that will not be added to this dataset.",
-        wide=True, reset=True)}
+        f"North Carolina sits lower here than it should: the federal file records {NC23:,} opioid deaths there in 2023, against the {NC23_STATE:,} the state itself counts, a gap of medical examiner cases closed too late to be included.",
+        wide=True, reset=True,
+        sense="Darker is worse: more opioid deaths per 100,000 residents.")}
 
 <h2 id="sec-03"><span class="kick">Section 03</span>What the death certificates leave out.</h2>
 <p>
@@ -778,7 +822,8 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 {figure("c-specificity", "Where the record-keeping is thinnest",
         "The ten states least likely to name a drug on an overdose death certificate.",
         "A high share means the state&rsquo;s opioid deaths are undercounted, not that it has fewer of them.",
-        anim="anim-hbars")}
+        anim="anim-hbars",
+        sense="Lower is better: a smaller share of overdose deaths whose certificate names no drug, so less correction is needed.")}
 
 <h2 id="sec-04"><span class="kick">Section 04</span>Every state improved. Some barely.</h2>
 <p>
@@ -796,7 +841,8 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 </p>
 {figure("c-decline", "The 2024 retreat, state by state",
         "Each state is measured against its own worst year, 2014&ndash;2023.",
-        wide=True, anim="anim-hbars")}
+        wide=True, anim="anim-hbars",
+        sense="Further left is better: a steeper fall from the state&rsquo;s own worst year. Bars near zero have barely retreated.")}
 
 <h2 id="sec-05"><span class="kick">Section 05</span>Counting treatment capacity.</h2>
 <p>
@@ -811,16 +857,18 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
   ({TX.pct_uninsured:.0f}%).
 </p>
 <div class="aside">
-  <strong>Two measures, deliberately.</strong> The OTP count comes from SAMHSA&rsquo;s
-  official certification list. The MOUD count comes from what facilities say about
-  themselves in the treatment locator. They are collected differently and fail
+  <strong>Two measures, deliberately.</strong> The OTP count, the narrower tier, comes
+  from SAMHSA&rsquo;s official certification list. The MOUD count, any facility offering
+  buprenorphine or methadone, comes from what facilities say about themselves in the
+  treatment locator. They are collected differently and fail
   differently, which is exactly why every finding below has to satisfy both. A
   facility is also not a bed, a clinician, or a patient slot: these counts show where
   treatment exists, not how much of it there is.
 </div>
 {figure("c-capacity", "Two tiers of capacity, state by state",
         "Sorted by MOUD density; the line is each state&rsquo;s gap between tiers.",
-        wide=True, anim="anim-pop")}
+        wide=True, anim="anim-pop",
+        sense="Further right is better, meaning more treatment per resident. A longer line is worse: it means fewer of that state&rsquo;s facilities are certified to dispense methadone.")}
 
 <h2 id="sec-06"><span class="kick">Section 06</span>The Wyoming mirage.</h2>
 <p>
@@ -881,8 +929,8 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 </p>
 {figure("c-scatter", "Burden against capacity, 50 states + DC",
         f"Bubble area: {LATEST} deaths. Dotted lines: the national medians.",
-        f"Purple: high on both (WV, KY, ME). Orange: the underserved {UND_WORDS}. Teal: Wyoming&rsquo;s small-population illusion. DC: a city measured against states, flagged throughout.",
-        anim="anim-pop")}
+        anim="anim-pop",
+        sense="Better is left and up: fewer deaths, more treatment. The four orange states carry a heavy burden on thin capacity.")}
 
 <h2 id="sec-08"><span class="kick">Section 08</span>{UND_WORDS.capitalize()} states break the pattern.</h2>
 <p>
@@ -907,8 +955,8 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 </div>
 {figure("c-slope", "Ranked twice: burden and capacity",
         f"States ranked by corrected death rate, then MOUD facilities per 100,000. Flat means the ranks match; falling orange lines are the underserved {UND_WORDS}.",
-        "Teal: Wyoming and Utah, whose high capacity ranks reflect small populations more than large systems. Ranks run 1&ndash;51, DC included but flagged.",
-        anim="anim-draw")}
+        anim="anim-draw",
+        sense="Rank 1 means opposite things on each side: worst burden on the left, most facilities on the right. A line falling left to right is worse.")}
 <table class="mini">
   <thead><tr><th>State</th><th>Deaths/100k &rsquo;22&ndash;24 (rank)</th><th>MOUD fac./100k (rank)</th><th>Deaths per facility</th><th>Off peak</th></tr></thead>
   <tbody>
@@ -951,7 +999,8 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 {figure("c-race", "One epidemic, two recoveries",
         f"Opioid overdose deaths per 100,000 by race, {RACE_2018}&ndash;{LATEST}.",
         "Single-race categories, so this series starts in 2018; the older federal file uses bridged-race groups that are not comparable. Hispanic origin is recorded separately and is not shown.",
-        wide=True, anim="anim-draw")}
+        wide=True, anim="anim-draw",
+        sense="Lower is better. A line still climbing while the others fall is the group left behind.")}
 <p>
   Treatment access follows the same fault line. Studied across commercially insured
   patients, Black patients had roughly 40% lower odds of receiving either
@@ -988,7 +1037,8 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 {figure("c-medicaid", "The one line that separates them",
         "Each dot is a state; the bars mark each group&rsquo;s median.",
         "Wisconsin and Georgia cover some adults through waivers without taking the expansion, and count as non-expansion here, following the source&rsquo;s own classification.",
-        anim="anim-pop")}
+        anim="anim-pop",
+        sense="Further right is better: more MOUD facilities per resident.")}
 <p>
   This explains part of the gap, not all of it. {" and ".join(UND_NONEXP)} never
   expanded; {" and ".join(UND_EXP)} did, and are short of treatment anyway. And the
@@ -1018,10 +1068,11 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
   treatment exists rather than how much there is or who can reach it.
 </p>
 <p>
-  <strong>Opioids are only part of the burden.</strong> Most opioid deaths now also
-  involve stimulants, and medication for opioid use disorder does nothing for
-  methamphetamine or cocaine. Capacity measured this way answers a narrower question
-  than the death counts pose.
+  <strong>Opioids are only part of the burden.</strong> A stimulant is involved in a
+  large share of opioid deaths &mdash; two in five, the last time CDC measured
+  co-involvement directly<sup class="cite"><a href="#cite-13">13</a></sup> &mdash; and medication for opioid use disorder does
+  nothing for methamphetamine or cocaine. Capacity measured this way answers a
+  narrower question than the death counts pose.
 </p>
 <p>
   <strong>The locator is self-reported.</strong> Facilities describe their own services and
@@ -1030,7 +1081,7 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 </p>
 <p>
   <strong>Office-based prescribing is invisible.</strong> Since Congress eliminated the
-  <a class="term" href="https://en.wikipedia.org/wiki/Drug_Addiction_Treatment_Act" target="_blank" rel="noopener">buprenorphine waiver</a> at the end of 2022, any DEA-registered clinician can prescribe it.
+  <a class="term" href="https://en.wikipedia.org/wiki/Drug_Addiction_Treatment_Act" target="_blank" rel="noopener">buprenorphine waiver</a> at the end of 2022, any clinician whose DEA registration covers Schedule III drugs can prescribe it.
   Those prescribers, and <a class="term" href="https://en.wikipedia.org/wiki/Telehealth" target="_blank" rel="noopener">telehealth</a>, do not appear in a facility locator, so
   buprenorphine access is undercounted everywhere, most in states that lean on office-based care.
 </p>
@@ -1065,8 +1116,10 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
   positions.
 </p>
 <p>
-  <strong>North Carolina&rsquo;s 2023 undercount.</strong> NCHS reports ~900 overdose deaths
-  coded late; North Carolina&rsquo;s true burden rank is somewhat higher than shown.
+  <strong>North Carolina&rsquo;s 2023 undercount.</strong> North Carolina reports
+  {NC23_STATE:,} opioid overdose deaths for 2023<sup class="cite"><a href="#cite-12">12</a></sup>
+  against the {NC23:,} in the federal file, a backlog its medical examiner closed after the
+  file was compiled. Its true burden rank is higher than shown.
 </p>
 
 <footer>
@@ -1074,60 +1127,58 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
   <ol class="citations">
     <li id="cite-1">Centers for Disease Control and Prevention, National Center for Health
       Statistics. National Vital Statistics System, Mortality 2014&ndash;2024, CDC WONDER
-      Online Database (Multiple Cause of Death: database <code>D157</code>, Single Race,
-      for 2018&ndash;2024; database <code>D77</code>, 1999&ndash;2020, for 2014&ndash;2017;
-      the 153 overlapping state-years agree exactly across the two).
-      Query: UCD <code>X40&ndash;44, X60&ndash;64, X85, Y10&ndash;14</code>; MCD
-      <code>T40.0&ndash;T40.4, T40.6</code>; grouped by state and year; age-adjusted and crude
-      rates. Accessed {CITE_DATE}.
+      (Multiple Cause of Death: <code>D157</code> for 2018&ndash;2024, <code>D77</code> for
+      2014&ndash;2017). UCD <code>X40&ndash;44, X60&ndash;64, X85, Y10&ndash;14</code>; MCD
+      <code>T40.0&ndash;T40.4, T40.6</code>; by state and year. Accessed {CITE_DATE}.
       <a href="https://wonder.cdc.gov/mcd-icd10-expanded.html" target="_blank" rel="noopener">wonder.cdc.gov</a></li>
     <li id="cite-2">Substance Abuse and Mental Health Services Administration,
-      FindTreatment.gov Treatment Services Locator (substance-use facilities,
-      <code>exportsAsJson</code> API). 12,220 listings retrieved {CITE_DATE}; 11,614 unique
-      facilities in the 50 states + DC after address de-duplication. MOUD = the facility
-      reports using buprenorphine or methadone in treatment; naltrexone-only listings and
-      facilities that only accept medication prescribed elsewhere are excluded.
+      FindTreatment.gov Treatment Services Locator (<code>exportsAsJson</code> API).
+      12,220 substance-use listings retrieved {CITE_DATE}; 11,614 unique facilities in the
+      50 states + DC.
       <a href="https://findtreatment.gov" target="_blank" rel="noopener">findtreatment.gov</a></li>
     <li id="cite-3">U.S. Census Bureau, American Community Survey 2023 1-year estimates:
-      tables <code>B01003</code> (population), <code>B19013</code> (median household income),
-      and data profile <code>DP03</code> (health-insurance coverage), retrieved via the Census
-      API, {CITE_DATE}.
+      <code>B01003</code> population, <code>B19013</code> median household income,
+      <code>DP03</code> insurance coverage, via the Census API, {CITE_DATE}.
       <a href="https://data.census.gov/table/ACSDT1Y2023.B01003" target="_blank" rel="noopener">data.census.gov</a></li>
     <li id="cite-4">National Center for Health Statistics, <em>Drug Overdose Deaths in the
-      United States, 2023&ndash;2024</em>, NCHS Data Brief No. 549. Independently reports
-      the same national opioid totals used here &mdash; 79,358 deaths in 2023, 54,045 in
-      2024 &mdash; and the record one-year decline.
+      United States, 2023&ndash;2024</em>, NCHS Data Brief No. 549. Independently reports the
+      national totals used here: 79,358 deaths in 2023, 54,045 in 2024.
       <a href="https://www.cdc.gov/nchs/products/databriefs/db549.htm" target="_blank" rel="noopener">cdc.gov/nchs</a></li>
-    <li id="cite-5">SAMHSA, Opioid Treatment Program Directory: the official list of
-      certified OTPs, exported {CITE_DATE}. {OTP_TOTAL:,} programs in the 50 states + DC
-      after de-duplication. Every OTP count in this article comes from this list rather
-      than from the locator&rsquo;s self-reported certification flag.
+    <li id="cite-5">SAMHSA, Opioid Treatment Program Directory: the official list of certified
+      OTPs, exported {CITE_DATE}. {OTP_TOTAL:,} programs in the 50 states + DC, and the source
+      of every OTP count here.
       <a href="https://www.samhsa.gov/find-help/locators/opioid-treatment-program-directory" target="_blank" rel="noopener">samhsa.gov</a></li>
-    <li id="cite-6">On incomplete drug reporting and its correction: Ruhm, and the
-      methodological review of quantifying opioid-involved overdose mortality, which
-      describes the proportional redistribution used here and finds national corrections
-      on the order of 20% in earlier years.
+    <li id="cite-6">Slavova S, Delcher C, Buchanich JM, et al. Methodological Complexities in
+      Quantifying Rates of Fatal Opioid-Related Overdose. <em>Current Epidemiology Reports</em>,
+      2019. Describes the proportional redistribution used here; Ruhm&rsquo;s adjustment raised
+      the 2015 national rate by 21%.
       <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC6559129/" target="_blank" rel="noopener">National Library of Medicine</a></li>
-    <li id="cite-7">Barnett ML, Meara E, Lewinson T, et al. Racial Inequality in Receipt
-      of Medications for Opioid Use Disorder. <em>New England Journal of Medicine</em>,
-      May 2023. Black patients were substantially less likely than white patients to
-      receive buprenorphine or methadone.
+    <li id="cite-7">Barnett ML, Meara E, Lewinson T, et al. Racial Inequality in Receipt of
+      Medications for Opioid Use Disorder. <em>New England Journal of Medicine</em>, May 2023.
+      Black patients were less likely than white patients to receive buprenorphine or methadone.
       <a href="https://www.nejm.org/doi/full/10.1056/NEJMsa2212412" target="_blank" rel="noopener">nejm.org</a></li>
     <li id="cite-8">Treatment for Opioid Use Disorder: Population Estimates, United States,
-      2022. Of adults needing treatment for opioid use disorder, about a quarter received
-      any medication for it.
+      2022. About a quarter of adults needing treatment received any medication for it.
       <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11254342/" target="_blank" rel="noopener">National Library of Medicine</a></li>
-    <li id="cite-9">American Civil Liberties Union, on West Virginia&rsquo;s moratorium on
-      new methadone clinics and the associated zoning restrictions, currently the subject
-      of a federal challenge.
+    <li id="cite-9">American Civil Liberties Union, on West Virginia&rsquo;s moratorium on new
+      methadone clinics, currently the subject of a federal challenge.
       <a href="https://www.aclu.org/press-releases/challenge-to-west-virginia-methadone-clinic-moratorium-proceeds" target="_blank" rel="noopener">aclu.org</a></li>
-    <li id="cite-10">Medicare Beneficiary Receipt of Methadone by Drive Time to Opioid
-      Treatment Programs: longer travel time was associated with sharply lower likelihood
-      of receiving methadone.
+    <li id="cite-10">Medicare Beneficiary Receipt of Methadone by Drive Time to Opioid Treatment
+      Programs: longer travel time meant sharply lower likelihood of receiving methadone.
       <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11969284/" target="_blank" rel="noopener">National Library of Medicine</a></li>
-    <li id="cite-11">KFF, Status of State Medicaid Expansion Decisions. Ten states have not
-      adopted the expansion; this analysis uses that classification unchanged.
+    <li id="cite-11">KFF, Status of State Medicaid Expansion Decisions. The ten-state
+      non-expansion classification used here.
       <a href="https://www.kff.org/medicaid/status-of-state-medicaid-expansion-decisions/" target="_blank" rel="noopener">kff.org</a></li>
+    <li id="cite-12">North Carolina Department of Health and Human Services, April 2026:
+      opioid-involved deaths fell from {NC23_STATE:,} in 2023 to 2,254 in 2024, and overdose
+      deaths overall from 4,442 to 2,934.
+      <a href="https://www.ncdhhs.gov/news/press-releases/2026/04/27/new-data-shows-all-time-low-infant-mortality-nc-sharp-decrease-overdose-related-deaths" target="_blank" rel="noopener">ncdhhs.gov</a></li>
+    <li id="cite-13">CDC, <em>Vital Signs: Characteristics of Drug Overdose Deaths Involving
+      Opioids and Stimulants</em>, MMWR 2020 (24 states + DC, January&ndash;June 2019). Of
+      16,236 overdose deaths, 5,301 involved opioids with a stimulant and 7,936 without one.
+      National vital statistics do not publish this breakdown, so it is not computed from the
+      mortality file used here.
+      <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7470457/" target="_blank" rel="noopener">MMWR / National Library of Medicine</a></li>
   </ol>
   <div class="repro">
     <h3>Reproducibility</h3>
@@ -1262,6 +1313,9 @@ function renderCharts() {{
       if (a.text === 'WA') {{ a.xshift = 0; a.yshift = 24; }}
       if (a.text === 'NV') {{ a.xshift = 8; a.yshift = 16; }}
     }});
+    // the slope chart's left gutter holds both rank ticks and state labels;
+    // at this width they collide unless x=0 is pushed further from the axis
+    CH['c-slope'].layout.xaxis.range = [-0.30, 1.14];
     var keep = ["{D2014:,}", "{D2022:,}", "{D2024:,}"];
     CH['c-national'].layout.annotations = CH['c-national'].layout.annotations.filter(function (a) {{
       return keep.some(function (k) {{ return a.text.indexOf(k) !== -1; }});
