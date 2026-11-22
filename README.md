@@ -1,4 +1,4 @@
-# One Facility for Every Nineteen Deaths
+# Opioids Killed Over 600,000 Americans. Did Treatment Follow?
 
 A data story on the U.S. opioid epidemic at the state level: what
 **612,499 opioid overdose deaths (2014–2024)** matched against **every treatment

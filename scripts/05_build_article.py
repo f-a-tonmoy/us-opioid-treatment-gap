@@ -499,11 +499,11 @@ html = f"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>One Facility for Every Nineteen Deaths</title>
+<title>Opioids Killed Over {TOTAL_FLOOR:,} Americans. Did Treatment Follow?</title>
 <meta name="description" content="{TOTAL:,} opioid deaths in eleven years, matched against every treatment facility in the country. Treatment followed the deaths; {UND_WORDS} states got left behind.">
 <meta name="author" content="Fahim Ahamed">
 <meta property="og:type" content="article">
-<meta property="og:title" content="One Facility for Every Nineteen Deaths">
+<meta property="og:title" content="Opioids Killed Over {TOTAL_FLOOR:,} Americans. Did Treatment Follow?">
 <meta property="og:description" content="{TOTAL:,} opioid deaths in eleven years, matched against every treatment facility in the country.">
 <meta property="og:url" content="https://f-a-tonmoy.github.io/us-opioid-treatment-gap/">
 <meta property="og:image" content="https://f-a-tonmoy.github.io/us-opioid-treatment-gap/reports/hero-image.png">
@@ -688,6 +688,25 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 @media (prefers-reduced-motion: reduce) {{
   figure .chart, figure .chart * {{ transition: none !important; }}
 }}
+
+/* ---- print / PDF ----
+   The charts reveal on scroll, so on paper they would come out blank: the
+   container sits at opacity 0 and the marks at 30% scale until the observer
+   fires. Force the end state. Override only the animated properties - never
+   `transform` on the marks themselves, which is what Plotly uses to position
+   them. */
+@media print {{
+  @page {{ margin: 14mm; }}
+  .section-nav, .back-to-top, .map-reset {{ display: none !important; }}
+  figure .chart {{ opacity: 1 !important; transform: none !important; }}
+  figure .chart .scatterlayer .trace .points path {{ scale: 1 !important; opacity: 1 !important; }}
+  figure .chart .bars .point path {{ transform: scaleX(1) !important; }}
+  figure .chart .scatterlayer .trace .lines path {{ stroke-dashoffset: 0 !important; }}
+  figure .chart, figure .chart * {{ transition: none !important; }}
+  figure, .statband, .takeaways, .aside, .figsense, table.mini {{ break-inside: avoid; }}
+  h2 {{ break-after: avoid; }}
+  article {{ max-width: none; }}
+}}
 </style>
 </head>
 <body>
@@ -709,10 +728,10 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 <div class="cover-inner">
 <header class="masthead">
   <div class="eyebrow">U.S. Opioid Epidemic · 2014 to 2024</div>
-  <h1>One Facility for Every Nineteen Deaths</h1>
+  <h1>Opioids Killed Over {TOTAL_FLOOR:,} Americans. Did Treatment Follow?</h1>
   <p class="deck">
-    Opioids killed more than {TOTAL_FLOOR:,} Americans in eleven years. Treatment followed the
-    deaths. {UND_WORDS.capitalize()} states got left behind.
+    Across most of the country, treatment tracks the death rate.
+    {UND_WORDS.capitalize()} states are the exception.
   </p>
   <div class="byline">
     By <strong>Fahim Ahamed</strong>
@@ -731,7 +750,7 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
   <div class="cell"><div class="n">03</div><div class="v">{WV.rate_3yr_adj / NE.rate_3yr_adj:.0f}&times;</div>
     <div class="k">death-rate gap between the worst state (WV) and the best (NE)</div></div>
   <div class="cell"><div class="n">04</div><div class="v alarm">{WA.deaths_per_moud_facility:.0f}</div>
-    <div class="k">opioid deaths per treatment facility in Washington state, the worst ratio in the country</div></div>
+    <div class="k">opioid deaths per treatment facility in Washington state, the worst ratio of any state</div></div>
 </div>
 </div>
 </div>
@@ -757,7 +776,7 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 <p>
   In 2014 the country recorded {D2014:,} opioid deaths. By the 2022 peak it had
   nearly tripled, to {D2022:,}, driven almost entirely by illegally made
-  <a class="term" href="https://en.wikipedia.org/wiki/Fentanyl" target="_blank" rel="noopener">fentanyl</a>. The worst year was 2020: the pandemic hit a street supply already flooded
+  <a class="term" href="https://en.wikipedia.org/wiki/Fentanyl" target="_blank" rel="noopener">fentanyl</a>. The steepest rise came in 2020: the pandemic hit a street supply already flooded
   with fentanyl, and deaths jumped {PCT_2020:.0f}%. In 2024 the count fell to
   <em class="stat">{D2024:,}</em>, down {abs(PCT_2324):.0f}% in one year, the sharpest
   decline ever measured<sup class="cite"><a href="#cite-4">4</a></sup>. Nobody fully knows why. Wider <a class="term" href="https://en.wikipedia.org/wiki/Naloxone" target="_blank" rel="noopener">naloxone</a> access, a shifting
@@ -790,7 +809,7 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
 
 <h2 id="sec-03"><span class="kick">Section 03</span>What the death certificates leave out.</h2>
 <p>
-  That map needs a correction before it can be trusted. A death certificate
+  The map above already carries a correction, and it needs explaining. A death certificate
   records an overdose, but naming the drug depends on whether the local
   coroner or medical examiner ordered a toxicology screen and wrote down what
   it found. Nationally, <em class="stat">{NAT_UNSPEC:.0f}% of overdose deaths
@@ -816,7 +835,7 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
   lot. <em class="stat">Louisiana rises {int(LA.rank_move)} places, from
   {ordinal(LA.r_burden_rep)} to {ordinal(LA.r_burden)}</em>, which puts it in the
   worst ten in the country. Its reported rate of {LA.rate_3yr:.1f} per 100,000
-  becomes {LA.rate_3yr_adj:.1f}. Every ranking from here on uses the corrected
+  becomes {LA.rate_3yr_adj:.1f}. Every ranking in this article uses the corrected
   figures, and the correction is the reason Louisiana appears in them at all.
 </p>
 {figure("c-specificity", "Where the record-keeping is thinnest",
@@ -964,8 +983,8 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
   </tbody>
 </table>
 <p>
-  Washington and Nevada combine thin coverage with the country&rsquo;s weakest 2024
-  declines. Alaska, kept off the list because {int(AK.deaths_latest)} deaths a year
+  Washington and Nevada combine thin coverage with some of the slowest retreats
+  from their worst years. Alaska, kept off the list because {int(AK.deaths_latest)} deaths a year
   make its rates jumpy, looks much the same: seventh in corrected burden,
   {AK.deaths_per_moud_facility:.0f} deaths per facility. Where deaths are falling slowest,
   treatment is hardest to find.
@@ -1111,9 +1130,9 @@ figure.anim-hbars .chart.marks-on .bars .point path {{ transform: scaleX(1); }}
   {LATEST} rate of {AK.crude_rate:.1f} per 100,000 has a confidence interval running
   {AK.crude_lo:.0f} to {AK.crude_hi:.0f}, and {CI_OVERLAP_WV} states&rsquo; intervals
   overlap West Virginia&rsquo;s. Re-ranking on age-adjusted rather than unadjusted rates
-  also moves states by up to {AA_MAXSHIFT} places ({AA_MAXSTATE} most). Neither changes
-  anything above, because the findings rest on groups of states rather than exact
-  positions.
+  also moves states by up to {AA_MAXSHIFT} places ({AA_MAXSTATE} most). The four-state
+  finding rests on a rule applied to groups of states, but the exact rank gaps
+  quoted in Section 08 carry this imprecision.
 </p>
 <p>
   <strong>North Carolina&rsquo;s 2023 undercount.</strong> North Carolina reports

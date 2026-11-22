@@ -1,6 +1,9 @@
 # Secrets — never commit
 .env
 
+# Generated from index.html on demand, not a source artifact
+reports/*.pdf
+
 # Internal writing blueprint + card generator
 ARTICLE_GUIDE.md
 scripts/06_build_og_image.py
